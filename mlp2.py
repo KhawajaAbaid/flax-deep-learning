@@ -17,7 +17,9 @@ class MLP(nn.Module):
     def __call__(self, x, train: bool):
         for dim in self.hidden_dims:
             x = nn.Dense(features=512)(x)
-            x = nn.BatchNorm(use_running_average=not train)(x)
+            x = nn.BatchNorm(
+                use_running_average=not train,
+                axis_name='batch')(x)
             x = nn.relu(x)
         x = nn.Dense(features=10)(x)
         return x
@@ -44,14 +46,19 @@ mnist_ds = mnist_ds.map(lambda x, y: (tf.reshape(x, (batch_size, -1)),
 @partial(jax.jit, static_argnums=3)
 def train_step(state: TrainState, x_batched, y_batched, epsilon=1e-15):
     def forward_and_loss(params):
-        y_pred, non_trainable_updates = state.apply_fn(
-            {'params': params, 'batch_stats': state.batch_stats}, x_batched,
-            train=True, mutable=['batch_stats'])
-        y_pred = jax.vmap(
-            jnp.clip,
-            in_axes=(0, None, None))(y_pred, epsilon, 1. - epsilon)
-        loss = optax.softmax_cross_entropy(y_pred, y_batched).mean()
-        return loss, non_trainable_updates
+        def for_single_instance(x, y):
+            y_pred, non_trainable_updates = state.apply_fn(
+                {'params': params, 'batch_stats': state.batch_stats}, x,
+                train=True, mutable=['batch_stats'])
+            y_pred = jnp.clip(y_pred, epsilon, 1. - epsilon)
+            loss = optax.softmax_cross_entropy(y_pred, y)
+            return loss, non_trainable_updates
+        losses, non_trainable_updates = jax.vmap(
+            for_single_instance,
+            in_axes=(0, 0),
+            out_axes=(0, None),
+            axis_name='batch')(x_batched, y_batched)
+        return jnp.mean(losses), non_trainable_updates
     grad_fn = jax.value_and_grad(forward_and_loss, has_aux=True)
     (loss, non_trainable_updates), grads = grad_fn(state.params)
     state = state.apply_gradients(grads=grads)
