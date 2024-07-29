@@ -199,10 +199,11 @@ def generate_and_save_image(generator_state, epoch, key):
 
 n_epochs = 1000
 n_batches = 0
-lr = 0.001
-per_epoch_loss = []
+gen_per_batch_losses = []
+disc_per_batch_losses = []
 key = random.key(4444)
 for epoch in range(1, n_epochs + 1):
+    batch_str = "if you're seeing this, something's wrong"
     for batch, x in enumerate(mnist_ds, start=1):
         x = x.numpy()
         if epoch == 1:
@@ -227,9 +228,16 @@ for epoch in range(1, n_epochs + 1):
         )
 
         print(f"\rEpoch: {epoch}/{n_epochs} | Batch {batch_str} | "
-              f"Gen Loss: {metrics['gen_loss']:.8f} | "
-              f"Disc Loss: {metrics['disc_loss']:.8f}", end="")
+              f"Gen Loss: {metrics['gen_loss']:.6f} | "
+              f"Disc Loss: {metrics['disc_loss']:.6f}", end="")
+        gen_per_batch_losses.append(metrics['gen_loss'])
+        disc_per_batch_losses.append(metrics['disc_loss'])
 
+    gen_loss = jnp.mean(jnp.asarray(gen_per_batch_losses))
+    disc_loss = jnp.mean(jnp.asarray(disc_per_batch_losses))
+    print(f"\rEpoch: {epoch}/{n_epochs} | Batch {batch_str} | "
+          f"Gen Loss: {gen_loss:.6f} | "
+          f"Disc Loss: {disc_loss:.6f}", end="")
     key = random.split(key, 1)[0]
     if epoch % 10 == 0:
         generate_and_save_image(generator_state, epoch, key)
