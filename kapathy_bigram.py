@@ -125,3 +125,29 @@ for epoch in range(n_epochs):
     xb, yb = get_batch('train', key)
     key, subkey = random.split(subkey)
     loss, state = train_step(state, xb, yb)
+
+
+# ============================
+# IF YOU WANNA GENERATE TEXT
+# ============================
+def generate(key, params, idx, max_new_tokens):
+    batch_size = idx.shape[0]
+    for _ in range(max_new_tokens):
+        logits = slm.apply(params, idx)
+        logits = logits[:, -1, :]
+        probs = jax.nn.softmax(logits, axis=-1)
+        idx_next = jax.vmap(
+            lambda key, p: random.choice(key, a=vocab_size, p=p),
+            in_axes=(0, 0),
+        )(random.split(key, batch_size), probs)
+        idx_next = jnp.expand_dims(idx_next, 1)
+        idx = jnp.concatenate([idx, idx_next], axis=-1)
+        key = random.split(key)[0]
+    return idx
+
+# Example usage:
+# key, subkey = random.split(7489213)
+# initial_idx = jnp.asarray([[0]])
+# gen_idx = generate(key, params, initial_idx, 100)
+# for idx in gen_idx:
+#   print(decode(idx.tolist()))
