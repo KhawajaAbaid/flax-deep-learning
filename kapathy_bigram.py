@@ -8,7 +8,7 @@ from functools import partial
 import os
 
 
-batch_size = 32    # Reduce if you're gpu poor or use colab (like me)
+batch_size = 32    # Up if you're gpu rich
 block_size = 8
 
 # ============================
